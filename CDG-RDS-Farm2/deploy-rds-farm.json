@@ -27,6 +27,20 @@
       },
       "defaultValue": "contoso.com"
     },
+    "existingManagedImageResourceGroup": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Resource Group containing the Image that instances of the VM Scale Set will be created from. Images can be created by capturing Azure VMs."
+      }
+    },
+
+    "existingManagedImageName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Image that instances of the VM Scale Set will be created from. Images can be created by capturing Azure VMs."
+      }
+    },
+
     "dnsLabelPrefix": {
       "type": "string",
       "metadata": {
@@ -92,6 +106,7 @@
   "variables": {
     "existingVNetID": "[resourceId(parameters('existingInfraResourceGroupName'), 'Microsoft.Network/virtualNetworks', parameters('existingVNetName'))]",
     "existingSubnetRef": "[concat(variables('existingVNetID'),'/subnets/', parameters('existingSubnetName'))]",
+    "managedImageId": "[resourceId(parameters('existingManagedImageResourceGroup'), 'Microsoft.Compute/images', parameters('existingManagedImageName'))]",
     "gwdnsLabelPrefix": "[toLower(concat('gwd', resourceGroup().name))]",
     "cbdnsLabelPrefix": "[toLower(concat('cbd', resourceGroup().name))]",
     "storageAccountName": "[tolower(concat('rdsa', uniqueString(resourceGroup().id)))]",
@@ -100,7 +115,7 @@
     "imagePublisher": "MicrosoftWindowsServer",
     "imageOffer": "WindowsServer",
     "dnsServerPrivateIp": "10.0.0.4",
-    
+
     "publicIpRef": "publicIp",
     "brokerIpRef": "brokerpublicIp",
     "gatewayIpRef": "gatewaypublicIp",
@@ -152,11 +167,19 @@
         "accountType": "[variables('storageAccountType')]"
       }
     },
+   
     {
-      "apiVersion": "2015-06-15",
       "type": "Microsoft.Compute/availabilitySets",
       "name": "gw-availabilityset",
-      "location": "[resourceGroup().location]"
+      "apiVersion": "2016-04-30-preview",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "platformUpdateDomainCount": 5,
+        "platformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
+      }
     },
     {
       "apiVersion": "2015-06-15",
@@ -375,7 +398,7 @@
       }
     },
     {
-      "apiVersion": "2015-06-15",
+      "apiVersion": "2016-04-30-preview",
       "type": "Microsoft.Compute/virtualMachines",
       "name": "gw-vm",
       "location": "[resourceGroup().location]",
@@ -396,234 +419,233 @@
           "adminUsername": "[parameters('adminUsername')]",
           "adminPassword": "[parameters('adminPassword')]"
         },
-        "storageProfile": {
-          "imageReference": {
-            "publisher": "[variables('imagePublisher')]",
-            "offer": "[variables('imageOffer')]",
-            "sku": "[parameters('imageSKU')]",
-            "version": "latest"
-          },
-          "osDisk": {
-            "name": "osdisk",
-            "vhd": {
-              "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','gw-vm-os-disk.vhd')]"
-            },
-            "caching": "ReadWrite",
-            "createOption": "FromImage"
-          }
-        },
-        "networkProfile": {
-          "networkInterfaces": [
-            {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces','gw-nic')]"
-            }
-          ]
-        }
-      },
-      "resources": [
-        {
-          "apiVersion": "2015-06-15",
-          "type": "Microsoft.Compute/virtualMachines/extensions",
-          "name": "gw-vm/gateway",
-          "location": "[resourceGroup().location]",
-          "dependsOn": [
-            "[resourceId('Microsoft.Compute/virtualMachines', 'gw-vm')]"
-          ],
-          "properties": {
-            "publisher": "Microsoft.Powershell",
-            "type": "DSC",
-            "typeHandlerVersion": "2.11",
-            "autoUpgradeMinorVersion": true,
-            "settings": {
-              "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
-              "ConfigurationFunction": "Configuration.ps1\\Gateway",
-              "Properties": {
-                "DomainName": "[parameters('existingAdDomainName')]",
-                "AdminCreds": {
-                  "UserName": "[parameters('adminUsername')]",
-                  "Password": "PrivateSettingsRef:AdminPassword"
-                }
-              }
-            },
-            "protectedSettings": {
-              "Items": {
-                "AdminPassword": "[parameters('adminPassword')]"
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "apiVersion": "2015-06-15",
-      "type": "Microsoft.Compute/virtualMachines",
-      "name": "[concat('rdsh-', copyindex())]",
-      "location": "[resourceGroup().location]",
-      "copy": {
-        "name": "rdsh-vm-loop",
-        "count": "[parameters('numberOfRdshInstances')]"
-      },
-      "dependsOn": [
-        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Compute/availabilitySets', 'rdsh-availabilityset')]",
-        "[concat('Microsoft.Network/networkInterfaces/', 'rdsh-', copyindex(), '-nic')]"
-      ],
-      "properties": {
-        "hardwareProfile": {
-          "vmSize": "[parameters('rdshVmSize')]"
-        },
-        "availabilitySet": {
-          "id": "[resourceId('Microsoft.Compute/availabilitySets', 'rdsh-availabilityset')]"
-        },
-        "osProfile": {
-          "computerName": "[concat('rdsh-', copyIndex())]",
-          "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('adminPassword')]"
-        },
-        "storageProfile": {
-          "imageReference": {
-            "publisher": "[variables('imagePublisher')]",
-            "offer": "[variables('imageOffer')]",
-            "sku": "[parameters('imageSKU')]",
-            "version": "latest"
-          },
-          "osDisk": {
-            "name": "osdisk",
-            "vhd": {
-              "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','rdsh-',copyindex(),'-os-disk.vhd')]"
 
-            },
-            "caching": "ReadWrite",
-            "createOption": "FromImage"
-          }
-        },
-        "networkProfile": {
-          "networkInterfaces": [
-            {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('rdsh-', copyindex(), '-nic'))]"
-            }
-          ]
-        }
-      },
-      "resources": [
-        {
-          "apiVersion": "2015-06-15",
-          "type": "Microsoft.Compute/virtualMachines/extensions",
-          "name": "[concat('rdsh-', copyindex(),'/sessionhost')]",
-          "location": "[resourceGroup().location]",
-          "dependsOn": [
-            "[resourceId('Microsoft.Compute/virtualMachines', concat('rdsh-', copyindex()))]"
-          ],
-          "properties": {
-            "publisher": "Microsoft.Powershell",
-            "type": "DSC",
-            "typeHandlerVersion": "2.11",
-            "autoUpgradeMinorVersion": true,
-            "settings": {
-              "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
-              "ConfigurationFunction": "Configuration.ps1\\SessionHost",
-              "Properties": {
-                "DomainName": "[parameters('existingAdDomainName')]",
-                "AdminCreds": {
-                  "UserName": "[parameters('adminUsername')]",
-                  "Password": "PrivateSettingsRef:AdminPassword"
-                }
-              }
-            },
-            "protectedSettings": {
-              "Items": {
-                "AdminPassword": "[parameters('adminPassword')]"
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "apiVersion": "2015-06-15",
-      "type": "Microsoft.Compute/virtualMachines",
-      "name": "cb-vm",
-      "location": "[resourceGroup().location]",
-      "dependsOn": [
-        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Compute/availabilitySets', 'cb-availabilityset')]",
-        "Microsoft.Network/networkInterfaces/cb-nic",
-        "rdsh-vm-loop"
-      ],
-      "properties": {
-        "hardwareProfile": {
-          "vmSize": "Standard_A2"
-        },
-        "availabilitySet": {
-          "id": "[resourceId('Microsoft.Compute/availabilitySets', 'cb-availabilityset')]"
-        },
-        "osProfile": {
-          "computerName": "broker",
-          "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('adminPassword')]"
-        },
         "storageProfile": {
           "imageReference": {
-            "publisher": "[variables('imagePublisher')]",
-            "offer": "[variables('imageOffer')]",
-            "sku": "[parameters('imageSKU')]",
-            "version": "latest"
+            "id": "[variables('managedImageId')]"
           },
           "osDisk": {
-            "name": "osdisk",
-            "vhd": {
-              "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','cb-vm-os-disk.vhd')]"
-            },
+            "name": "[concat('gateway', '-osdisk')]",
+            "createOption": "FromImage",
             "caching": "ReadWrite",
-            "createOption": "FromImage"
-          }
-        },
-        "networkProfile": {
-          "networkInterfaces": [
-            {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces','cb-nic')]"
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
             }
-          ]
-        }
-      }
-    },
-    {
-      "type": "Microsoft.Compute/virtualMachines/extensions",
-      "name": "cb-vm/rdsdeployment",
-      "apiVersion": "2015-06-15",
-      "location": "[resourceGroup().location]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Compute/virtualMachines', 'cb-vm')]",
-        "Microsoft.Compute/virtualMachines/gw-vm/extensions/gateway",
-        "rdsh-vm-loop"
-      ],
-      "properties": {
-        "publisher": "Microsoft.Powershell",
-        "type": "DSC",
-        "typeHandlerVersion": "2.11",
-        "autoUpgradeMinorVersion": true,
-        "settings": {
-          "modulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
-          "configurationFunction": "Configuration.ps1\\RDSDeployment",
-          "Properties": {
-            "adminCreds": {
-              "UserName": "[parameters('adminUsername')]",
-              "Password": "PrivateSettingsRef:adminPassword"
-            },
-            "connectionBroker": "[concat('broker.',parameters('existingAdDomainName'))]",
-            "domainName": "[parameters('existingAdDomainName')]",
-            "externalfqdn": "[reference(variables('gatewayIpRef')).dnsSettings.fqdn]",
-            "numberOfRdshInstances": "[parameters('numberOfRdshInstances')]",
-            "sessionHostNamingPrefix": "rdsh-",
-            "webAccessServer": "[concat('gateway.',parameters('existingAdDomainName'))]"
+          },
+
+
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces','gw-nic')]"
+              }
+            ]
           }
         },
-        "protectedSettings": {
-          "Items": {
+        "resources": [
+          {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "gw-vm/gateway",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+              "[resourceId('Microsoft.Compute/virtualMachines', 'gw-vm')]"
+            ],
+            "properties": {
+              "publisher": "Microsoft.Powershell",
+              "type": "DSC",
+              "typeHandlerVersion": "2.11",
+              "autoUpgradeMinorVersion": true,
+              "settings": {
+                "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
+                "ConfigurationFunction": "Configuration.ps1\\Gateway",
+                "Properties": {
+                  "DomainName": "[parameters('existingAdDomainName')]",
+                  "AdminCreds": {
+                    "UserName": "[parameters('adminUsername')]",
+                    "Password": "PrivateSettingsRef:AdminPassword"
+                  }
+                }
+              },
+              "protectedSettings": {
+                "Items": {
+                  "AdminPassword": "[parameters('adminPassword')]"
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "apiVersion": "2015-06-15",
+        "type": "Microsoft.Compute/virtualMachines",
+        "name": "[concat('rdsh-', copyindex())]",
+        "location": "[resourceGroup().location]",
+        "copy": {
+          "name": "rdsh-vm-loop",
+          "count": "[parameters('numberOfRdshInstances')]"
+        },
+        "dependsOn": [
+          "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+          "[resourceId('Microsoft.Compute/availabilitySets', 'rdsh-availabilityset')]",
+          "[concat('Microsoft.Network/networkInterfaces/', 'rdsh-', copyindex(), '-nic')]"
+        ],
+        "properties": {
+          "hardwareProfile": {
+            "vmSize": "[parameters('rdshVmSize')]"
+          },
+          "availabilitySet": {
+            "id": "[resourceId('Microsoft.Compute/availabilitySets', 'rdsh-availabilityset')]"
+          },
+          "osProfile": {
+            "computerName": "[concat('rdsh-', copyIndex())]",
+            "adminUsername": "[parameters('adminUsername')]",
             "adminPassword": "[parameters('adminPassword')]"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "[variables('imagePublisher')]",
+              "offer": "[variables('imageOffer')]",
+              "sku": "[parameters('imageSKU')]",
+              "version": "latest"
+            },
+            "osDisk": {
+              "name": "osdisk",
+              "vhd": {
+                "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','rdsh-',copyindex(),'-os-disk.vhd')]"
+
+              },
+              "caching": "ReadWrite",
+              "createOption": "FromImage"
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('rdsh-', copyindex(), '-nic'))]"
+              }
+            ]
+          }
+        },
+        "resources": [
+          {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat('rdsh-', copyindex(),'/sessionhost')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+              "[resourceId('Microsoft.Compute/virtualMachines', concat('rdsh-', copyindex()))]"
+            ],
+            "properties": {
+              "publisher": "Microsoft.Powershell",
+              "type": "DSC",
+              "typeHandlerVersion": "2.11",
+              "autoUpgradeMinorVersion": true,
+              "settings": {
+                "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
+                "ConfigurationFunction": "Configuration.ps1\\SessionHost",
+                "Properties": {
+                  "DomainName": "[parameters('existingAdDomainName')]",
+                  "AdminCreds": {
+                    "UserName": "[parameters('adminUsername')]",
+                    "Password": "PrivateSettingsRef:AdminPassword"
+                  }
+                }
+              },
+              "protectedSettings": {
+                "Items": {
+                  "AdminPassword": "[parameters('adminPassword')]"
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "apiVersion": "2015-06-15",
+        "type": "Microsoft.Compute/virtualMachines",
+        "name": "cb-vm",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+          "[resourceId('Microsoft.Compute/availabilitySets', 'cb-availabilityset')]",
+          "Microsoft.Network/networkInterfaces/cb-nic",
+          "rdsh-vm-loop"
+        ],
+        "properties": {
+          "hardwareProfile": {
+            "vmSize": "Standard_A2"
+          },
+          "availabilitySet": {
+            "id": "[resourceId('Microsoft.Compute/availabilitySets', 'cb-availabilityset')]"
+          },
+          "osProfile": {
+            "computerName": "broker",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "[variables('imagePublisher')]",
+              "offer": "[variables('imageOffer')]",
+              "sku": "[parameters('imageSKU')]",
+              "version": "latest"
+            },
+            "osDisk": {
+              "name": "osdisk",
+              "vhd": {
+                "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','cb-vm-os-disk.vhd')]"
+              },
+              "caching": "ReadWrite",
+              "createOption": "FromImage"
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces','cb-nic')]"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "Microsoft.Compute/virtualMachines/extensions",
+        "name": "cb-vm/rdsdeployment",
+        "apiVersion": "2015-06-15",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[resourceId('Microsoft.Compute/virtualMachines', 'cb-vm')]",
+          "Microsoft.Compute/virtualMachines/gw-vm/extensions/gateway",
+          "rdsh-vm-loop"
+        ],
+        "properties": {
+          "publisher": "Microsoft.Powershell",
+          "type": "DSC",
+          "typeHandlerVersion": "2.11",
+          "autoUpgradeMinorVersion": true,
+          "settings": {
+            "modulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
+            "configurationFunction": "Configuration.ps1\\RDSDeployment",
+            "Properties": {
+              "adminCreds": {
+                "UserName": "[parameters('adminUsername')]",
+                "Password": "PrivateSettingsRef:adminPassword"
+              },
+              "connectionBroker": "[concat('broker.',parameters('existingAdDomainName'))]",
+              "domainName": "[parameters('existingAdDomainName')]",
+              "externalfqdn": "[reference(variables('gatewayIpRef')).dnsSettings.fqdn]",
+              "numberOfRdshInstances": "[parameters('numberOfRdshInstances')]",
+              "sessionHostNamingPrefix": "rdsh-",
+              "webAccessServer": "[concat('gateway.',parameters('existingAdDomainName'))]"
+            }
+          },
+          "protectedSettings": {
+            "Items": {
+              "adminPassword": "[parameters('adminPassword')]"
+            }
           }
         }
       }
+      ]
     }
-  ]
-}
