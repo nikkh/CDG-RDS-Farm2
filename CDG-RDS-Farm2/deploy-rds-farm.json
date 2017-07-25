@@ -441,7 +441,8 @@
             "managedDisk": {
               "storageAccountType": "Premium_LRS"
             }
-          },
+          }
+        },
 
 
           "networkProfile": {
