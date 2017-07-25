@@ -27,10 +27,13 @@
   <ItemGroup>
     <Content Include="create-domain.json" />
     <Content Include="create-domain.parameters.json" />
+    <None Include="deploy-rds-farm.json" />
+    <None Include="deploy-rds-farm.parameters.json" />
     <None Include="Deployment.targets">
       <Visible>False</Visible>
     </None>
     <Content Include="Deploy-AzureResourceGroup.ps1" />
+    <None Include="DSC\Configuration.zip" />
     <None Include="DSC\ConfigureADBDC.ps1" />
     <None Include="DSC\ConfigureADBDC.zip" />
     <None Include="DSC\ConfigureADPDC.ps1" />
