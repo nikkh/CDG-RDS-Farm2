@@ -2,33 +2,38 @@
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "dnsLabelPrefix": {
+    "existingInfraResourceGroupName": {
       "type": "string",
       "metadata": {
         "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
       }
     },
-    "adDomainName": {
+    "existingVNetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
+      }
+    },
+    "existingSubnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
+      }
+    },
+    "existingAdDomainName": {
       "type": "string",
       "metadata": {
         "description": "The name of the AD domain. For example contoso.com"
       },
       "defaultValue": "contoso.com"
     },
-    "adVnetName": {
+    "dnsLabelPrefix": {
       "type": "string",
       "metadata": {
-        "description": "The vnet name of AD domain. For example johnvnet1"
-      },
-      "defaultValue": "[concat('ADVNET',resourceGroup().name)]"
+        "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
+      }
     },
-    "adSubnetName": {
-      "type": "string",
-      "metadata": {
-        "description": "The subnet name of AD domain. For example johnsubnet1"
-      },
-      "defaultValue": "[concat('ADStaticSubnet',resourceGroup().name)]"
-    },
+
     "adminUsername": {
       "type": "string",
       "metadata": {
@@ -85,7 +90,9 @@
     }
   },
   "variables": {
-    "gwdnsLabelPrefix": "[toLower(concat('gwd', 'blah'))]",
+    "existingVNetID": "[resourceId(parameters('existingInfraResourceGroupName'), 'Microsoft.Network/virtualNetworks', parameters('existingVNetName'))]",
+    "existingSubnetRef": "[concat(variables('existingVNetID'),'/subnets/', parameters('existingSubnetName'))]",
+    "gwdnsLabelPrefix": "[toLower(concat('gwd', resourceGroup().name))]",
     "cbdnsLabelPrefix": "[toLower(concat('cbd', resourceGroup().name))]",
     "storageAccountName": "[tolower(concat('rdsa', uniqueString(resourceGroup().id)))]",
     "storageAccountType": "Standard_LRS",
@@ -284,7 +291,7 @@
                 "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('gatewayIpRef'))]"
               },
               "subnet": {
-                "id": "[variables('subnet-id')]"
+                "id": "[variables('existingSubnetRef')]"
               },
               "loadBalancerBackendAddressPools": [
                 {
@@ -324,7 +331,7 @@
                 "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('brokerIpRef'))]"
               },
               "subnet": {
-                "id": "[variables('subnet-id')]"
+                "id": "[variables('existingSubnetRef')]"
               }
             }
           }
@@ -355,7 +362,7 @@
             "properties": {
               "privateIPAllocationMethod": "Dynamic",
               "subnet": {
-                "id": "[variables('subnet-id')]"
+                "id": "[variables('existingSubnetRef')]"
               }
             }
           }
@@ -431,7 +438,7 @@
               "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
               "ConfigurationFunction": "Configuration.ps1\\Gateway",
               "Properties": {
-                "DomainName": "[parameters('adDomainName')]",
+                "DomainName": "[parameters('existingAdDomainName')]",
                 "AdminCreds": {
                   "UserName": "[parameters('adminUsername')]",
                   "Password": "PrivateSettingsRef:AdminPassword"
@@ -516,7 +523,7 @@
               "ModulesUrl": "[concat(variables('assetLocation'),'/Configuration.zip')]",
               "ConfigurationFunction": "Configuration.ps1\\SessionHost",
               "Properties": {
-                "DomainName": "[parameters('adDomainName')]",
+                "DomainName": "[parameters('existingAdDomainName')]",
                 "AdminCreds": {
                   "UserName": "[parameters('adminUsername')]",
                   "Password": "PrivateSettingsRef:AdminPassword"
@@ -603,12 +610,12 @@
               "UserName": "[parameters('adminUsername')]",
               "Password": "PrivateSettingsRef:adminPassword"
             },
-            "connectionBroker": "[concat('broker.',parameters('adDomainName'))]",
-            "domainName": "[parameters('adDomainName')]",
+            "connectionBroker": "[concat('broker.',parameters('existingAdDomainName'))]",
+            "domainName": "[parameters('existingAdDomainName')]",
             "externalfqdn": "[reference(variables('gatewayIpRef')).dnsSettings.fqdn]",
             "numberOfRdshInstances": "[parameters('numberOfRdshInstances')]",
             "sessionHostNamingPrefix": "rdsh-",
-            "webAccessServer": "[concat('gateway.',parameters('adDomainName'))]"
+            "webAccessServer": "[concat('gateway.',parameters('existingAdDomainName'))]"
           }
         },
         "protectedSettings": {
