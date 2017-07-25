@@ -31,6 +31,17 @@
       <Visible>False</Visible>
     </None>
     <Content Include="Deploy-AzureResourceGroup.ps1" />
+    <None Include="DSC\ConfigureADBDC.ps1" />
+    <None Include="DSC\ConfigureADBDC.zip" />
+    <None Include="DSC\ConfigureADPDC.ps1" />
+    <None Include="DSC\CreateADPDC.zip" />
+    <None Include="DSC\PrepareADBDC.ps1" />
+    <None Include="DSC\PrepareADBDC.zip" />
+    <None Include="metadata.json" />
+    <None Include="nestedtemplates\configureADBDC.json" />
+    <None Include="nestedtemplates\nic.json" />
+    <None Include="nestedtemplates\vnet-with-dns-server.json" />
+    <None Include="nestedtemplates\vnet.json" />
     <None Include="readme.md" />
   </ItemGroup>
   <Target Name="GetReferenceAssemblyPaths" />
