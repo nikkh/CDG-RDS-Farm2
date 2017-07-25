@@ -55,6 +55,7 @@
       },
       "defaultValue": "vmadmin"
     },
+
     "adminPassword": {
       "type": "securestring",
       "metadata": {
@@ -62,6 +63,7 @@
       },
       "defaultValue": "[concat('Subscription#',subscription().subscriptionId)]"
     },
+
     "imageSKU": {
       "type": "string",
       "allowedValues": [
@@ -185,13 +187,21 @@
       "apiVersion": "2015-06-15",
       "type": "Microsoft.Compute/availabilitySets",
       "name": "cb-availabilityset",
-      "location": "[resourceGroup().location]"
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "platformUpdateDomainCount": 5,
+        "platformFaultDomainCount": 2
+      }
     },
     {
       "apiVersion": "2015-06-15",
       "type": "Microsoft.Compute/availabilitySets",
       "name": "rdsh-availabilityset",
-      "location": "[resourceGroup().location]"
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "platformUpdateDomainCount": 5,
+        "platformFaultDomainCount": 2
+      }
     },
     {
       "apiVersion": "2015-06-15",
