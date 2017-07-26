@@ -514,8 +514,8 @@
             "id": "[variables('managedImageId')]"
           },
           "osDisk": {
-
-            "name": "\"[concat('rdsh-', copyIndex(), '-osdisk')]",
+            "name": "[concat('rdsh-', copyindex(), '-osdisk')]",
+           
 
             "createOption": "FromImage",
             "caching": "ReadWrite",
