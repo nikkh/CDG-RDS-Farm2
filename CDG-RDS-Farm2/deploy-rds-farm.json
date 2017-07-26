@@ -5,19 +5,19 @@
     "existingInfraResourceGroupName": {
       "type": "string",
       "metadata": {
-        "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
+        "description": "The resource group where your Domain Controllers and Virtual Network are deployed.  This must be in the same subscription that you are currently deploying to."
       }
     },
     "existingVNetName": {
       "type": "string",
       "metadata": {
-        "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
+        "description": "The existing Virtual Network where you want your RDSH Farm deployed.  (Must have a pre-exisitng AD Domain)"
       }
     },
     "existingSubnetName": {
       "type": "string",
       "metadata": {
-        "description": "Unique public DNS prefix for the deployment. The fqdn will look something like '<dnsname>.westus.cloudapp.azure.com'. Up to 62 chars, digits or dashes, lowercase, should start with a letter: must conform to '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'. For example johndns1 will result the final RDWEB access url like https://johndns1.westus.cloudapp.azure.com/RDWeb"
+        "description": "The subnet where you want your RDS Farm deployed"
       }
     },
     "existingAdDomainName": {
@@ -30,14 +30,14 @@
     "existingManagedImageResourceGroup": {
       "type": "string",
       "metadata": {
-        "description": "The name of the Resource Group containing the Image that instances of the VM Scale Set will be created from. Images can be created by capturing Azure VMs."
+        "description": "The name of the Resource Group containing the base image for the VMs.  This can be can be created by capturing Azure VMs."
       }
     },
 
     "existingManagedImageName": {
       "type": "string",
       "metadata": {
-        "description": "The name of the Image that instances of the VM Scale Set will be created from. Images can be created by capturing Azure VMs."
+        "description": "The name of the Ithe base image for the VMs."
       }
     },
 
@@ -51,7 +51,7 @@
     "adminUsername": {
       "type": "string",
       "metadata": {
-        "description": "The name of the administrator of the new VM and the domain. Exclusion list: 'administrator'. For example johnadmin"
+        "description": "The name of the administrator of the domain. Exclusion list: 'administrator'. For example johnadmin"
       },
       "defaultValue": "vmadmin"
     },
@@ -59,22 +59,12 @@
     "adminPassword": {
       "type": "securestring",
       "metadata": {
-        "description": "The password for the administrator account of the new VM and the domain"
+        "description": "The password for the administrator account of domain"
       },
       "defaultValue": "[concat('Subscription#',subscription().subscriptionId)]"
     },
 
-    "imageSKU": {
-      "type": "string",
-      "allowedValues": [
-        "2012-R2-Datacenter",
-        "2016-Datacenter"
-      ],
-      "metadata": {
-        "description": "Windows server SKU"
-      },
-      "defaultValue": "2016-Datacenter"
-    },
+  
     "numberOfRdshInstances": {
       "type": "int",
       "defaultValue": 1,
@@ -184,23 +174,29 @@
       }
     },
     {
-      "apiVersion": "2015-06-15",
+      "apiVersion": "2016-04-30-preview",
       "type": "Microsoft.Compute/availabilitySets",
       "name": "cb-availabilityset",
       "location": "[resourceGroup().location]",
       "properties": {
         "platformUpdateDomainCount": 5,
         "platformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
       }
     },
     {
-      "apiVersion": "2015-06-15",
+      "apiVersion": "2016-04-30-preview",
       "type": "Microsoft.Compute/availabilitySets",
       "name": "rdsh-availabilityset",
       "location": "[resourceGroup().location]",
       "properties": {
         "platformUpdateDomainCount": 5,
         "platformFaultDomainCount": 2
+      },
+      "sku": {
+        "name": "Aligned"
       }
     },
     {
@@ -515,21 +511,18 @@
           },
           "storageProfile": {
             "imageReference": {
-              "publisher": "[variables('imagePublisher')]",
-              "offer": "[variables('imageOffer')]",
-              "sku": "[parameters('imageSKU')]",
-              "version": "latest"
+              "id": "[variables('managedImageId')]"
             },
             "osDisk": {
               "name": "osdisk",
-              "vhd": {
-                "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','rdsh-',copyindex(),'-os-disk.vhd')]"
-
-              },
+              "createOption": "FromImage",
               "caching": "ReadWrite",
-              "createOption": "FromImage"
+              "managedDisk": {
+                "storageAccountType": "Standard_LRS"
+              }
             }
           },
+     
           "networkProfile": {
             "networkInterfaces": [
               {
@@ -595,20 +588,18 @@
             "adminUsername": "[parameters('adminUsername')]",
             "adminPassword": "[parameters('adminPassword')]"
           },
+         
           "storageProfile": {
             "imageReference": {
-              "publisher": "[variables('imagePublisher')]",
-              "offer": "[variables('imageOffer')]",
-              "sku": "[parameters('imageSKU')]",
-              "version": "latest"
+              "id": "[variables('managedImageId')]"
             },
             "osDisk": {
               "name": "osdisk",
-              "vhd": {
-                "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName')),providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).primaryEndpoints.blob,variables('uniqueStorageAccountContainerName'),'/','cb-vm-os-disk.vhd')]"
-              },
+              "createOption": "FromImage",
               "caching": "ReadWrite",
-              "createOption": "FromImage"
+              "managedDisk": {
+                "storageAccountType": "Standard_LRS"
+              }
             }
           },
           "networkProfile": {
